@@ -74,15 +74,15 @@
   "Emit a multi-line comment string for C"
   [msg]
   (def processed-msg (first (peg/match comment-patch-peg msg)))
-  (xprint (dyn *out*) "/* " processed-msg " */"))
+  (xprint (dyn *out* stdout) "/* " processed-msg " */"))
 
 (defdyn *indent* "current indent buffer")
 (defn- indent [] (or (dyn *indent*) (setdyn *indent* @"")))
 
 # Expose indent helpers
-(defn emit-indent [] (xprin (dyn *out*) (indent)))
-(defn emit-block-start [] (xprin (dyn *out*) "{") (buffer/push (indent) "  ") (xprint (dyn *out*)))
-(defn emit-block-end [&opt nl] (buffer/popn (indent) 2) (emit-indent) (xprin (dyn *out*) "}") (when nl (xprint (dyn *out*))))
+(defn emit-indent [] (xprin (dyn *out* stdout) (indent)))
+(defn emit-block-start [] (xprin (dyn *out* stdout) "{") (buffer/push (indent) "  ") (xprint (dyn *out* stdout)))
+(defn emit-block-end [&opt nl] (buffer/popn (indent) 2) (emit-indent) (xprin (dyn *out* stdout) "}") (when nl (xprint (dyn *out* stdout))))
 
 (var- emit-type nil)
 (var- emit-expression nil)
@@ -92,19 +92,19 @@
 (defn- emit-struct-union-def
   [which name args defname]
   (when (or (nil? args) (empty? args))
-    (xprin (dyn *out*) which " " name)
-    (if defname (xprin (dyn *out*) " " defname))
+    (xprin (dyn *out* stdout) which " " name)
+    (if defname (xprin (dyn *out* stdout) " " defname))
     (break))
   (assert (even? (length args)) (string/format "expected even number of arguments, got %j" args))
-  (xprin (dyn *out*) which " ")
-  (if name (xprin (dyn *out*) name " "))
+  (xprin (dyn *out* stdout) which " ")
+  (if name (xprin (dyn *out* stdout) name " "))
   (emit-block-start)
   (each [field ftype] (partition 2 args)
     (emit-indent)
     (emit-type ftype field)
-    (xprint (dyn *out*) ";"))
+    (xprint (dyn *out* stdout) ";"))
   (emit-block-end)
-  (if defname (xprin (dyn *out*) " " defname)))
+  (if defname (xprin (dyn *out* stdout) " " defname)))
 
 (defn- emit-struct-def
   [name args defname]
@@ -116,67 +116,67 @@
 
 (defn- emit-enum-def
   [name args defname]
-  (xprin (dyn *out*) "enum ")
-  (if name (xprin (dyn *out*) name " "))
+  (xprin (dyn *out* stdout) "enum ")
+  (if name (xprin (dyn *out* stdout) name " "))
   (emit-block-start)
   (each x args
     (emit-indent)
     (if (tuple? x)
       (do
-        (xprin (dyn *out*) (x 0) " = ")
+        (xprin (dyn *out* stdout) (x 0) " = ")
         (emit-expression (x 1))
-        (xprint (dyn *out*) ","))
-      (xprint (dyn *out*) x ",")))
+        (xprint (dyn *out* stdout) ","))
+      (xprint (dyn *out* stdout) x ",")))
   (emit-block-end)
-  (if defname (xprin (dyn *out*) " " defname)))
+  (if defname (xprin (dyn *out* stdout) " " defname)))
 
 (defn- emit-fn-pointer-type
   [ret-type args defname]
-  (xprin (dyn *out*) "(")
+  (xprin (dyn *out* stdout) "(")
   (emit-type ret-type)
-  (xprin (dyn *out*) ")(*" defname ")(")
+  (xprin (dyn *out* stdout) ")(*" defname ")(")
   (var is-first true)
   (each x args
-    (unless is-first (xprin (dyn *out*) ", "))
+    (unless is-first (xprin (dyn *out* stdout) ", "))
     (set is-first false)
     (if (tuple? x)
       (emit-type (x 1) (x 0))
       (emit-type x)))
-  (xprin (dyn *out*) ")"))
+  (xprin (dyn *out* stdout) ")"))
 
 (defn- emit-ptr-type
   [x alias]
   (emit-type x)
-  (xprin (dyn *out*) " *")
-  (if alias (xprin (dyn *out*) alias)))
+  (xprin (dyn *out* stdout) " *")
+  (if alias (xprin (dyn *out* stdout) alias)))
 
 (defn- emit-ptr-ptr-type
   [x alias]
   (emit-type x)
-  (xprin (dyn *out*) " **")
-  (if alias (xprin (dyn *out*) alias)))
+  (xprin (dyn *out* stdout) " **")
+  (if alias (xprin (dyn *out* stdout) alias)))
 
 (defn- emit-const-type
   [x alias]
-  (xprin (dyn *out*) "const ")
+  (xprin (dyn *out* stdout) "const ")
   (emit-type x)
-  (if alias (xprin (dyn *out*) " " alias)))
+  (if alias (xprin (dyn *out* stdout) " " alias)))
 
 (defn- emit-array-type
   [x n alias]
-  (if-not alias (xprin (dyn *out*) "("))
+  (if-not alias (xprin (dyn *out* stdout) "("))
   (emit-type x)
-  (if alias (xprin (dyn *out*) " " alias))
-  (xprin (dyn *out*) "[")
+  (if alias (xprin (dyn *out* stdout) " " alias))
+  (xprin (dyn *out* stdout) "[")
   (when n
     (emit-expression n true))
-  (xprin (dyn *out*) "]")
-  (if-not alias (xprin (dyn *out*) ")")))
+  (xprin (dyn *out* stdout) "]")
+  (if-not alias (xprin (dyn *out* stdout) ")")))
 
 (varfn emit-type
   [definition &opt alias]
   (match definition
-    (d (bytes? d)) (do (xprin (dyn *out*) d) (if alias (xprin (dyn *out*) " " alias)))
+    (d (bytes? d)) (do (xprin (dyn *out* stdout) d) (if alias (xprin (dyn *out* stdout) " " alias)))
     (t (tuple? t))
     (match t
       ['struct & body] (emit-struct-def nil body alias)
@@ -197,9 +197,9 @@
 
 (defn- emit-typedef
   [alias definition]
-  (xprin (dyn *out*) "typedef ")
+  (xprin (dyn *out* stdout) "typedef ")
   (emit-type definition alias)
-  (xprint (dyn *out*) ";"))
+  (xprint (dyn *out* stdout) ";"))
 
 # Expressions
 
@@ -207,64 +207,64 @@
   [items]
   (def f (get items 0))
   (emit-expression f (symbol? f))
-  (xprin (dyn *out*) "(")
+  (xprin (dyn *out* stdout) "(")
   (for i 1 (length items)
-    (if (not= i 1) (xprin (dyn *out*) ", "))
+    (if (not= i 1) (xprin (dyn *out* stdout) ", "))
     (emit-expression (in items i) true))
-  (xprin (dyn *out*) ")"))
+  (xprin (dyn *out* stdout) ")"))
 
 (defn- emit-binop
   [op & xs]
   (var is-first true)
   (each x xs
-    (if-not is-first (xprin (dyn *out*) " " op " "))
+    (if-not is-first (xprin (dyn *out* stdout) " " op " "))
     (set is-first false)
     (emit-expression x)))
 
 (defn- emit-indexer
   [op ds field]
   (emit-expression ds)
-  (xprin (dyn *out*) op field))
+  (xprin (dyn *out* stdout) op field))
 
 (defn- emit-unop
   [op x]
-  (xprin (dyn *out*) op)
+  (xprin (dyn *out* stdout) op)
   (emit-expression x))
 
 (defn- emit-ternary
   [c t f]
   (emit-expression c)
-  (xprin (dyn *out*) " ? ")
+  (xprin (dyn *out* stdout) " ? ")
   (emit-expression t)
-  (xprin (dyn *out*) " : ")
+  (xprin (dyn *out* stdout) " : ")
   (emit-expression f))
 
 (defn- emit-aindex
   [a index]
   (emit-expression a)
-  (xprin (dyn *out*) "[")
+  (xprin (dyn *out* stdout) "[")
   (emit-expression index true)
-  (xprin (dyn *out*) "]"))
+  (xprin (dyn *out* stdout) "]"))
 
 (defn- emit-set
   [lvalue rvalue]
   (emit-expression lvalue true)
-  (xprin (dyn *out*) " = ")
+  (xprin (dyn *out* stdout) " = ")
   (emit-expression rvalue true))
 
 (defn- emit-deref
   [ptr]
-  (xprin (dyn *out*) "*")
+  (xprin (dyn *out* stdout) "*")
   (emit-expression ptr))
 
 (defn- emit-address
   [expr]
-  (xprin (dyn *out*) "&")
+  (xprin (dyn *out* stdout) "&")
   (emit-expression expr))
 
 (defn- emit-cast
   [ctype expr]
-  (xprin (dyn *out*) "(" ctype ")")
+  (xprin (dyn *out* stdout) "(" ctype ")")
   (emit-expression expr))
 
 (defn- emit-struct-ctor
@@ -273,44 +273,44 @@
   (emit-block-start)
   (each [k v] (partition 2 args)
     (emit-indent)
-    (xprin (dyn *out*) "." k " = ")
+    (xprin (dyn *out* stdout) "." k " = ")
     (emit-expression v true)
-    (xprint (dyn *out*) ","))
+    (xprint (dyn *out* stdout) ","))
   (emit-block-end))
 
 (defn- emit-array-ctor
   [args]
   (var is-first true)
-  (xprin (dyn *out*) "{")
+  (xprin (dyn *out* stdout) "{")
   (each x args
-    (if-not is-first (xprin (dyn *out*) ", "))
+    (if-not is-first (xprin (dyn *out* stdout) ", "))
     (set is-first false)
     (emit-expression x true))
-  (xprin (dyn *out*) "}"))
+  (xprin (dyn *out* stdout) "}"))
 
 (varfn emit-expression
   [form &opt noparen]
   (match form
-    (f (or (symbol? f) (keyword? f))) (xprin (dyn *out*) f)
-    (n (number? n)) (xprinf (dyn *out*) "%.17g" n)
-    (s (string? s)) (xprinf (dyn *out*) "%v" s) # todo - better match escape codes
+    (f (or (symbol? f) (keyword? f))) (xprin (dyn *out* stdout) f)
+    (n (number? n)) (xprinf (dyn *out* stdout) "%.17g" n)
+    (s (string? s)) (xprinf (dyn *out* stdout) "%v" s) # todo - better match escape codes
     (a (array? a)) (do
-                     (unless noparen (xprin (dyn *out*) "("))
+                     (unless noparen (xprin (dyn *out* stdout) "("))
                      (emit-array-ctor a)
-                     (unless noparen (xprin (dyn *out*) ")")))
+                     (unless noparen (xprin (dyn *out* stdout) ")")))
     (d (dictionary? d))
     (do
-      (unless noparen (xprin (dyn *out*) "("))
+      (unless noparen (xprin (dyn *out* stdout) "("))
       (emit-struct-ctor (mapcat identity (sort (pairs d))))
-      (unless noparen (xprint (dyn *out*) ")")))
+      (unless noparen (xprint (dyn *out* stdout) ")")))
     (t (tuple? t))
     (do
-      (unless noparen (xprin (dyn *out*) "("))
+      (unless noparen (xprin (dyn *out* stdout) "("))
       (match t
         [(bs (bops bs)) & rest] (emit-binop (bops bs) ;rest)
         [(bs (uops bs)) & rest] (emit-unop (uops bs) ;rest)
-        ['literal l] (xprin (dyn *out*) (string l))
-        ['quote q] (xprin (dyn *out*) (string q))
+        ['literal l] (xprin (dyn *out* stdout) (string l))
+        ['quote q] (xprin (dyn *out* stdout) (string q))
         ['aref v i] (emit-aindex v i)
         ['call & args] (emit-funcall args)
         ['set v i] (emit-set v i)
@@ -323,7 +323,7 @@
         ['? c t f] (emit-ternary c t f)
         ['. v f] (emit-indexer "." v f)
         (emit-funcall t))
-      (unless noparen (xprin (dyn *out*) ")")))
+      (unless noparen (xprin (dyn *out* stdout) ")")))
     ie (errorf "invalid expression %v" ie)))
 
 # Statements
@@ -334,9 +334,9 @@
   (emit-type vtype v)
   (if (not= nil value)
     (do
-      (xprin (dyn *out*) " = ")
+      (xprin (dyn *out* stdout) " = ")
       (emit-expression value true))
-    (xprint (dyn *out*) ";")))
+    (xprint (dyn *out* stdout) ";")))
 
 (varfn emit-statement
   [form]
@@ -353,7 +353,7 @@
   (each s statements
     (emit-block s true))
   (emit-block-end)
-  (xprint (dyn *out*)))
+  (xprint (dyn *out* stdout)))
 
 (defn- emit-cond
   [args]
@@ -362,37 +362,37 @@
   (each [condition branch] (partition 2 args)
     (if (= nil branch)
       (do
-        (xprin (dyn *out*) " else ")
+        (xprin (dyn *out* stdout) " else ")
         (emit-block condition))
       (do
         (if is-first
-          (do (emit-indent) (xprin (dyn *out*) "if ("))
-          (xprin (dyn *out*) " else if ("))
+          (do (emit-indent) (xprin (dyn *out* stdout) "if ("))
+          (xprin (dyn *out* stdout) " else if ("))
         (set is-first false)
         (emit-expression condition true)
-        (xprin (dyn *out*) ") ")
+        (xprin (dyn *out* stdout) ") ")
         (emit-block branch))))
-  (xprint (dyn *out*)))
+  (xprint (dyn *out* stdout)))
 
 (defn- emit-while
   [condition stm body]
   (emit-indent)
-  (xprin (dyn *out*) "while (")
+  (xprin (dyn *out* stdout) "while (")
   (emit-expression condition true)
-  (xprin (dyn *out*) ") ")
+  (xprin (dyn *out* stdout) ") ")
   (if (empty? body)
     (emit-block stm)
     (emit-do [stm ;body]))
-  (xprint (dyn *out*)))
+  (xprint (dyn *out* stdout)))
 
 (defn- case-literal? [x] (or (symbol? x) (and (number? x) (= x (math/floor x)))))
 
 (defn- emit-switch
   [condition cases]
   (emit-indent)
-  (xprin (dyn *out*) "switch (")
+  (xprin (dyn *out* stdout) "switch (")
   (emit-expression condition true)
-  (xprin (dyn *out*) ") ")
+  (xprin (dyn *out* stdout) ") ")
   (emit-block-start)
   (def case-pairs (partition 2 cases))
   (each case-pair case-pairs
@@ -400,39 +400,39 @@
     (def [case-value body] case-pair)
     (if (= 1 (length case-pair))
       (do
-        (xprint (dyn *out*) "default:")
+        (xprint (dyn *out* stdout) "default:")
         (emit-block case-value true)
-        (xprint (dyn *out*)))
+        (xprint (dyn *out* stdout)))
       (do
-        (xprin (dyn *out*) "case ")
+        (xprin (dyn *out* stdout) "case ")
         (assert (case-literal? case-value) "case label must be integer literal or enum")
-        (xprint (dyn *out*) case-value ":")
+        (xprint (dyn *out* stdout) case-value ":")
         (emit-block body true)
-        (xprint (dyn *out*)))))
+        (xprint (dyn *out* stdout)))))
   (emit-block-end)
-  (xprint (dyn *out*)))
+  (xprint (dyn *out* stdout)))
 
 (defn- emit-for
   [init cond step body]
   (emit-indent)
-  (xprin (dyn *out*) "for (")
+  (xprin (dyn *out* stdout) "for (")
   (emit-expression init true)
-  (xprin (dyn *out*) "; ")
+  (xprin (dyn *out* stdout) "; ")
   (emit-expression cond true)
-  (xprin (dyn *out*) "; ")
+  (xprin (dyn *out* stdout) "; ")
   (emit-expression step true)
-  (xprin (dyn *out*) ") ")
+  (xprin (dyn *out* stdout) ") ")
   (if (empty? body)
     (emit-block body)
     (emit-do [body ;body]))
-  (xprint (dyn *out*)))
+  (xprint (dyn *out* stdout)))
 
 (defn- emit-return
   [v]
   (emit-indent)
-  (xprin (dyn *out*) "return ")
+  (xprin (dyn *out* stdout) "return ")
   (emit-expression v true)
-  (xprint (dyn *out*) ";"))
+  (xprint (dyn *out* stdout) ";"))
 
 (varfn emit-block
   [form &opt nobracket]
@@ -446,11 +446,11 @@
     ['if & body] (emit-cond body)
     ['cond & body] (emit-cond body)
     ['return val] (emit-return val)
-    ['break] (do (emit-indent) (xprint (dyn *out*) "break;"))
-    ['continue] (do (emit-indent) (xprint (dyn *out*) "continue;"))
-    ['label lab] (xprint (dyn *out*) "label " lab ":")
-    ['goto lab] (do (emit-indent) (xprint (dyn *out*) "goto " (form 1)))
-    stm (do (emit-indent) (emit-statement stm) (xprint (dyn *out*) ";")))
+    ['break] (do (emit-indent) (xprint (dyn *out* stdout) "break;"))
+    ['continue] (do (emit-indent) (xprint (dyn *out* stdout) "continue;"))
+    ['label lab] (xprint (dyn *out* stdout) "label " lab ":")
+    ['goto lab] (do (emit-indent) (xprint (dyn *out* stdout) "goto " (form 1)))
+    stm (do (emit-indent) (emit-statement stm) (xprint (dyn *out* stdout) ";")))
   (unless nobracket (emit-block-end)))
 
 # Top level forms
@@ -458,30 +458,30 @@
 (defn- emit-storage-classes
   [classes]
   (each class classes
-    (xprin (dyn *out*) class " ")))
+    (xprin (dyn *out* stdout) class " ")))
 
 (defn- emit-function
   [docstring classes name arglist rtype body]
-  (xprint (dyn *out*))
+  (xprint (dyn *out* stdout))
   (emit-comment docstring)
   (emit-storage-classes classes)
-  (xprin (dyn *out*) rtype " " name "(")
+  (xprin (dyn *out* stdout) rtype " " name "(")
   (var is-first true)
   (each arg arglist
-    (unless is-first (xprin (dyn *out*) ", "))
+    (unless is-first (xprin (dyn *out* stdout) ", "))
     (set is-first false)
     (def [v t] (type-split arg))
     (emit-type t v))
-  (xprin (dyn *out*) ")")
+  (xprin (dyn *out* stdout) ")")
   (if (empty? body)
-    (xprint (dyn *out*) ";")
+    (xprint (dyn *out* stdout) ";")
     (do
-      (xprin (dyn *out*) " ")
+      (xprin (dyn *out* stdout) " ")
       (emit-do body))))
 
 (defn- do-directive
   [& args]
-  (xprint (dyn *out*) "#" (string/join (map string args) " ")))
+  (xprint (dyn *out* stdout) "#" (string/join (map string args) " ")))
 
 (defn- do-function
   [name & form]
@@ -510,7 +510,7 @@
 
 (defn- do-typedef
   [n d]
-  (xprint (dyn *out*))
+  (xprint (dyn *out* stdout))
   (emit-typedef n d))
 
 (defn- qq-wrap
@@ -743,7 +743,7 @@
                  (eval (qq-wrap body)))
   # Generate wrapper for use in Janet
   (def cfun_name (mangle (string "_generated_cfunction_" name)))
-  (xprin (dyn *out*)
+  (xprin (dyn *out* stdout)
     "\nJANET_FN(" cfun_name ", "
     (string/format "%j" (string signature)) ", "
     (string/format "%j" (string docstring)) ") ")
@@ -760,7 +760,7 @@
   "Call this at the end of a cjanet module to add a module entry function."
   [name]
   (def all-cfuns (dyn *cfun-list* @[]))
-  (xprin (dyn *out*) "\nJANET_MODULE_ENTRY(JanetTable *env) ")
+  (xprin (dyn *out* stdout) "\nJANET_MODULE_ENTRY(JanetTable *env) ")
   (block
     (def (cfuns (array JanetRegExt)) (array ,;all-cfuns JANET_REG_END))
     (janet_cfuns_ext env ,name cfuns)))
