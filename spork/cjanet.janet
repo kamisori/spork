@@ -465,15 +465,11 @@
 
 (defn- emit-function
   [docstring classes name arglist rtype body]
-  (def rettype (if (= :tuple (type rtype))
-                 (if (= "*" (string (first rtype)))
-                   (string ;(reverse rtype))
-                   (string (first rtype) " " ;(reverse (last rtype))))
-                 rtype))
   (print)
   (emit-comment docstring)
   (emit-storage-classes classes)
-  (prin rettype " " name "(")
+  (emit-type rtype)
+  (prin " " name "(")
   (var is-first true)
   (each arg arglist
     (unless is-first (prin ", "))
@@ -514,7 +510,8 @@
   (def v (last form))
   (when (next storage-classes)
     (emit-storage-classes storage-classes))
-  (emit-declaration binding v))
+  (emit-declaration binding v)
+  (print ";"))
 
 (defn- do-typedef
   [n d]
