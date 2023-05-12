@@ -282,16 +282,13 @@
   [args]
   (var is-first true)
   (emit-block-start)
-#  (print "{")
   (each x args
     (if-not is-first (print ", "))
     (set is-first false)
     (emit-indent)
     (emit-expression x true))
   (print "")
-  (emit-block-end)
-  #(prin "}")
-  )
+  (emit-block-end))
 
 (varfn emit-expression
   [form &opt noparen]
@@ -750,8 +747,8 @@
   # Generate wrapper for use in Janet
   (def cfun_name (mangle (string "_generated_cfunction_" mangledname)))
   (print "\nJANET_FN(" cfun_name ",")
-  (print (string/format "  %j" (string signature)) ", ")
-  (print (string/format "  %j" (string docstring)) ")")
+  (print "        " (string/format "%j" (string signature)) ", ")
+  (print "        " (string/format "%j" (string docstring)) ")")
   (block
     ,(if (= min-arity max-arity)
       ~(janet_fixarity argc ,min-arity)
