@@ -424,7 +424,7 @@
   (prin ") ")
   (if (empty? body)
     (emit-block body)
-    (emit-do [body ;body]))
+    (emit-do [;body]))
   (print))
 
 (defn- emit-return
