@@ -127,6 +127,7 @@
 (assert-no-error (t-test-2 array array2) "t-test-2")
 (assert-no-error (permutation-test array array2) "permutation-test array")
 
+(def buff (buffer/new-filled 0 20000))
 
 ##some bug regarding iteration
 (defn get-random-tarray [size seed]
@@ -139,10 +140,11 @@
 (def marshd (marshal (get-random-tarray 20000 123)))
 
 (def randomtarrays @{  
-  :a (unmarshal marshd)
-  :b (unmarshal marshd)
-  :c (unmarshal marshd)
-  :d (unmarshal marshd)
+  :a (get-random-tarray 20000 123)
+  :b (get-random-tarray 20000 123)
+  :c (get-random-tarray 20000 123)
+  :d (get-random-tarray 20000 123)
+  :e (get-random-tarray 20000 123)
   })
 
 
@@ -150,11 +152,21 @@
 # sometimes the crash happens right after that value, sometimes the script keeps executing across some sort of garbagedata
 (let [count (tarray/length (randomtarrays :a))
       refbuf (get randomtarrays :a)]
+  #(for i 0 (* 2 count) (prin i " "))
+  (pp randomtarrays)
+  (pp (keys randomtarrays))
+  (eachp [k buf] randomtarrays
+    (print k)
+    (pp (tarray/properties buf))
+    (print k))
+  (pp randomtarrays)
+  (pp (keys randomtarrays))
   (for i 0 count
     (eachp [k buf] randomtarrays
       (let [value (get buf i)
             refvalue (get refbuf i)]
         (assert (= value refvalue) (string "At idx " i " value: " value " refvalue: " refvalue))))))
 
+(print "done with 15")
 (end-suite)
 

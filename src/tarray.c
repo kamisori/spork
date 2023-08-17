@@ -103,9 +103,27 @@ void ta_buffer_sensure(JanetBuffer *buffer, int32_t new_size, int32_t growth) {
 static int ta_mark(void *p, size_t s) {
     (void) s;
     JanetTArrayView *view = (JanetTArrayView *)p;
-    janet_mark(janet_wrap_buffer(view->buffer));
+    if (view->buffer->gc.flags & JANET_BUFFER_FLAG_NO_REALLOC){
+        printf("marking %p ", (void*)view->buffer);
+        janet_mark(janet_wrap_buffer(view->buffer));
+        printf("marked\n");
+    }
+    janet_mark(janet_wrap_abstract(view));
     return 0;
 }
+
+static int ta_gc(void *p, size_t s) {
+    (void) s;
+    JanetTArrayView *view = (JanetTArrayView *)p;
+    if (view->buffer->data != NULL &&
+        view->buffer->gc.flags & JANET_BUFFER_FLAG_NO_REALLOC){
+        printf("freeing %p ", (void*)view->buffer);
+        janet_sfree(view->buffer->data);
+        printf("freed\n");
+        view->buffer->data = NULL;
+    }
+    return 0;
+}    
 
 static void ta_view_marshal(void *p, JanetMarshalContext *ctx) {
     JanetTArrayView *view = (JanetTArrayView *)p;
@@ -275,6 +293,7 @@ static Janet ta_view_next(void *p, Janet key) {
 const JanetAbstractType janet_ta_view_type = {
     .name = "ta/view",
     .gcmark = ta_mark,
+    .gc = ta_gc,
     .get = ta_getter,
     .put = ta_setter,
     .marshal = ta_view_marshal,
@@ -299,9 +318,15 @@ JanetTArrayView *janet_tarray_view(
 
     if (NULL == buffer) {
         buffer = ta_buffer_init(buf_size);
+        printf("using new %p \n", (void*) buffer);
+    }
+    else
+    {
+        printf("using existing %p \n", (void*) buffer);
     }
 
     ta_buffer_sensure(buffer, buf_size, 2);
+    printf("using %p \n", (void*) buffer);
 
     if (buffer->capacity < buf_size) {
         janet_panicf("bad buffer size, %i bytes allocated < %i required",
@@ -405,9 +430,10 @@ static Janet cfun_typed_array_size(int32_t argc, Janet *argv) {
 static Janet cfun_typed_array_properties(int32_t argc, Janet *argv) {
     janet_fixarity(argc, 1);
     JanetTArrayView *view;
+    printf("props:\n");
     if ((view = ta_is_view(argv[0]))) {
         JanetTArrayView *view = janet_unwrap_abstract(argv[0]);
-        JanetKV *props = janet_struct_begin(6);
+        JanetKV *props = janet_struct_begin(7);
         ptrdiff_t boffset = view->as.u8 - view->buffer->data;
         janet_struct_put(props, janet_ckeywordv("size"),
                          janet_wrap_number((double) view->size));
@@ -427,8 +453,10 @@ static Janet cfun_typed_array_properties(int32_t argc, Janet *argv) {
     } else {
         JanetBuffer *buffer = janet_gettarray_buffer(argv, 0);
         JanetKV *props = janet_struct_begin(2);
-        janet_struct_put(props, janet_ckeywordv("size"),
+        janet_struct_put(props, janet_ckeywordv("capacity"),
                          janet_wrap_number((double) buffer->capacity));
+        janet_struct_put(props, janet_ckeywordv("count"),
+                         janet_wrap_number((double) buffer->count));
         return janet_wrap_struct(janet_struct_end(props));
     }
 }
