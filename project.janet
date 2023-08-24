@@ -39,8 +39,24 @@
   :name "spork/utf8"
   :source @["src/utf8.c"])
 
+(def cflags
+  '[
+    "/Iexternal"
+    "/Z7"
+    "/JMC"
+    "/EHsc"
+    #"/fsanitize=address"
+   ])
+
+(def lflags
+  '[
+    "/DEBUG"
+    ])
+
 (declare-native
  :name "spork/tarray"
+ :cppflags [;default-cflags ;cflags]
+ :lflags [;default-lflags ;lflags]
  :headers @["src/tarray.h"]
  :source @["src/tarray.c"])
 

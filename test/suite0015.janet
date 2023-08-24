@@ -127,7 +127,6 @@
 (assert-no-error (t-test-2 array array2) "t-test-2")
 (assert-no-error (permutation-test array array2) "permutation-test array")
 
-(def buff (buffer/new-filled 0 20000))
 
 ##some bug regarding iteration
 (defn get-random-tarray [size seed]
@@ -138,27 +137,30 @@
   array)
 
 (def marshd (marshal (get-random-tarray 20000 123)))
+(def prebuf (tarray/buffer (unmarshal marshd)))
 
 (def randomtarrays @{  
   :a (get-random-tarray 20000 123)
   :b (get-random-tarray 20000 123)
-  :c (get-random-tarray 20000 123)
-  :d (get-random-tarray 20000 123)
-  :e (get-random-tarray 20000 123)
+  :c (tarray/new :float64 20000 1 0 prebuf)
+  :d (unmarshal marshd)
+  :e (unmarshal marshd)
   })
 
+(var visited-keys @[])
 
   # sometimes the crash is at another index but on my machine it's at around value #2777
 # sometimes the crash happens right after that value, sometimes the script keeps executing across some sort of garbagedata
 (let [count (tarray/length (randomtarrays :a))
       refbuf (get randomtarrays :a)]
-  #(for i 0 (* 2 count) (prin i " "))
+  (for i 0 (* 4 count) (prin "."))
   (pp randomtarrays)
-  (pp (keys randomtarrays))
   (eachp [k buf] randomtarrays
     (print k)
-    (pp (tarray/properties buf))
-    (print k))
+    (pp (first ((tarray/properties buf) :buffer)))
+    (pp (first buf))
+    (array/push visited-keys k)
+    (pp visited-keys))
   (pp randomtarrays)
   (pp (keys randomtarrays))
   (for i 0 count
