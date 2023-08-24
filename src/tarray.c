@@ -346,6 +346,12 @@ JanetTArrayView *janet_tarray_view(
     view->as.u8 = buffer->data + offset;
     view->type = type;
 
+#ifdef JANET_BIG_ENDIAN
+    view->flags = TA_FLAG_BIG_ENDIAN;
+#else
+    view->flags = 0;
+#endif
+    
     return view;
 }
 
