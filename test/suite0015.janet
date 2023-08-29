@@ -136,38 +136,45 @@
     (put array i (math/random)))
   array)
 
-(def marshd (marshal (get-random-tarray 20000 123)))
-(def prebuf (tarray/buffer (unmarshal marshd)))
+(def marshd2 (marshal (get-random-tarray 20000 123)))
+(def prebuf2 (tarray/buffer (unmarshal marshd2)))
 
-(def randomtarrays @{  
-  :a (get-random-tarray 20000 123)
-  :b (get-random-tarray 20000 123)
-  :c (tarray/new :float64 20000 1 0 prebuf)
-  :d (unmarshal marshd)
-  :e (unmarshal marshd)
-  })
+(let [marshd (marshal (get-random-tarray 20000 123))
+      prebuf (tarray/buffer (unmarshal marshd))
+      h (unmarshal marshd)
+      randomtarrays @{  
+        :f (unmarshal marshd)
+        :a (get-random-tarray 20000 123)
+        :b (tarray/new :float64 20000 1 0 prebuf)
+        :c (tarray/new :float64 20000 1 0 prebuf2)
+        :e (unmarshal marshd)
+        :g (unmarshal marshd)
+        :d (unmarshal marshd2)
+        :h h
+        #:i (unmarshal marshd2)
+        }]
 
-(var visited-keys @[])
+  (var visited-keys @[])
 
-  # sometimes the crash is at another index but on my machine it's at around value #2777
-# sometimes the crash happens right after that value, sometimes the script keeps executing across some sort of garbagedata
-(let [count (tarray/length (randomtarrays :a))
-      refbuf (get randomtarrays :a)]
-  (for i 0 (* 4 count) (prin "."))
-  (pp randomtarrays)
-  (eachp [k buf] randomtarrays
-    (print k)
-    (pp (first ((tarray/properties buf) :buffer)))
-    (pp (first buf))
-    (array/push visited-keys k)
-    (pp visited-keys))
-  (pp randomtarrays)
-  (pp (keys randomtarrays))
-  (for i 0 count
+    # sometimes the crash is at another index but on my machine it's at around value #2777
+  # sometimes the crash happens right after that value, sometimes the script keeps executing across some sort of garbagedata
+  (let [count (tarray/length (randomtarrays :a))
+        refbuf (get randomtarrays :a)]
+    (for i 0 (* 4 count) (prin "."))
+    (pp randomtarrays)
     (eachp [k buf] randomtarrays
-      (let [value (get buf i)
-            refvalue (get refbuf i)]
-        (assert (= value refvalue) (string "At idx " i " value: " value " refvalue: " refvalue))))))
+      (print k)
+      (pp (first ((tarray/properties buf) :buffer)))
+      (pp (first buf))
+      (array/push visited-keys k)
+      (pp visited-keys))
+    (pp randomtarrays)
+    (pp (keys randomtarrays))
+    (for i 0 count
+      (eachp [k buf] randomtarrays
+        (let [value (get buf i)
+              refvalue (get refbuf i)]
+          (assert (= value refvalue) (string "At idx " i " value: " value " refvalue: " refvalue)))))))
 
 (print "done with 15")
 (end-suite)

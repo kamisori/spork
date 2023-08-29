@@ -78,13 +78,16 @@ static size_t ta_buffer_length(void *p, size_t size) {
 
 // get an unmanaged JanetBuffer
 JanetBuffer *ta_buffer_init(size_t buf_size) {
+    JanetBuffer * out;
     void* mem = janet_smalloc(buf_size);
     if (NULL == mem) {
         JANET_OUT_OF_MEMORY;
     }
     printf("ta_buffer_init allocated %zd bytes of scratchmem @%p\n", buf_size, mem);
     memset(mem, 0, buf_size);
-    return janet_pointer_buffer_unsafe(mem, buf_size, buf_size);
+    out = janet_pointer_buffer_unsafe(mem, buf_size, buf_size);
+    //janet_gcroot(janet_wrap_buffer(out));
+    return out;
 }
 
 /* Ensure that the buffer has enough internal capacity */
@@ -118,13 +121,24 @@ static int ta_mark(void *p, size_t s) {
 static int ta_gc(void *p, size_t s) {
     (void) s;
     JanetTArrayView *view = (JanetTArrayView *)p;
-    if (view->buffer->data != NULL &&
-        view->buffer->gc.flags & JANET_BUFFER_FLAG_NO_REALLOC){
-        printf("ta_gc freeing %p \n", (void*)view->buffer);
-        janet_sfree(view->buffer->data);
-        printf("ta_gc freed\n");
-        view->buffer->data = NULL;
-    }
+    if (view != NULL){
+        printf("ta_gc\n");
+        if (view->buffer != NULL){
+            printf("ta_gc freeing %p \n", (void*)view->buffer);
+            printf("ta_gc gc.flags %d JANET_BUFFER_FLAG_NO_REALLOC: %d \n", view->buffer->gc.flags, JANET_BUFFER_FLAG_NO_REALLOC);
+            if(view->buffer->gc.flags & JANET_BUFFER_FLAG_NO_REALLOC)
+            //if (view->buffer->data != NULL)
+            {
+                printf("ta_gc gc.flags\n");
+                if (view->buffer->data != NULL)
+                //if(view->buffer->gc.flags & JANET_BUFFER_FLAG_NO_REALLOC)
+                {
+                    //janet_gcunroot(janet_wrap_buffer(view->buffer));
+                    printf("ta_gc data not null\n");
+                    janet_sfree(view->buffer->data);
+                    printf("ta_gc freed\n");
+                    view->buffer->data = NULL;
+                }}}}
     return 0;
 }
 
@@ -132,37 +146,44 @@ static void ta_view_marshal(void *p, JanetMarshalContext *ctx) {
     JanetTArrayView *view = (JanetTArrayView *)p;
     size_t offset = (view->buffer->data - view->as.u8);
     janet_marshal_abstract(ctx, p);
-    janet_marshal_size(ctx, view->size);
-    janet_marshal_size(ctx, view->stride);
+    printf("marshaling size %d\n", view->size);
+    janet_marshal_int(ctx, view->size);
+    printf("marshaling stride %d\n", view->stride);
+    janet_marshal_int(ctx, view->stride);
+    printf("marshaling flags %d\n", view->flags);
     janet_marshal_int(ctx, view->flags);
+    printf("marshaling type %d\n", view->type);
     janet_marshal_int(ctx, view->type);
+    printf("marshaling offset %zd\n", offset);
     janet_marshal_size(ctx, offset);
+    printf("marshaling capacity %d\n", view->buffer->capacity);
     janet_marshal_int(ctx, view->buffer->capacity);
     janet_marshal_bytes(ctx, view->buffer->data, view->buffer->capacity);
 }
 
 static void *ta_view_unmarshal(JanetMarshalContext *ctx) {
-    int32_t capacity;
     size_t offset;
-    int32_t flags;
-    int32_t atype;
+    int32_t capacity, flags, atype, size, stride;
     JanetTArrayView *view = janet_unmarshal_abstract(ctx, sizeof(JanetTArrayView));
-    view->size = janet_unmarshal_size(ctx);
-    view->stride = janet_unmarshal_size(ctx);
+    size = janet_unmarshal_int(ctx);
+    stride = janet_unmarshal_int(ctx);
     flags = janet_unmarshal_int(ctx);
     atype = janet_unmarshal_int(ctx);
     if (atype < 0 || atype >= TA_COUNT_TYPES)
         janet_panic("bad typed array type");
-    view->type = atype;
     offset = janet_unmarshal_size(ctx);
     capacity = janet_unmarshal_int(ctx);
-    size_t buf_need_size = offset + (ta_type_sizes[view->type]) * ((view->size - 1) * view->stride + 1);
-    printf("unmarshal calling ta_buffer_init %zd\n", buf_need_size);
-    view->buffer = ta_buffer_init(buf_need_size);
+    //size_t buf_need_size = offset + (ta_type_sizes[view->type]) * ((view->size - 1) * view->stride + 1);
+    printf("unmarshal calling ta_buffer_init %d\n", capacity);
+    view->buffer = ta_buffer_init(capacity);
     printf("unmarshal allocated scratchmem for buffer @%p\n", (void*)view->buffer);
     janet_unmarshal_bytes(ctx, view->buffer->data, capacity);
     view->buffer->count = capacity;
+    view->stride = stride;
+    view->size = size;
     view->as.u8 = view->buffer->data + offset;
+    view->type = atype;
+    view->flags = flags;
     return view;
 }
 
@@ -448,8 +469,11 @@ static Janet cfun_typed_array_properties(int32_t argc, Janet *argv) {
     JanetTArrayView *view;
     printf("props:\n");
     if ((view = ta_is_view(argv[0]))) {
+        printf("janet_unwrap_abstract:\n");
         JanetTArrayView *view = janet_unwrap_abstract(argv[0]);
+        printf("janet_struct_begin:\n");
         JanetKV *props = janet_struct_begin(7);
+        printf("ptrdiff_t:\n");
         ptrdiff_t boffset = view->as.u8 - view->buffer->data;
         printf("size..");
         janet_struct_put(props, janet_ckeywordv("size"),
@@ -475,7 +499,9 @@ static Janet cfun_typed_array_properties(int32_t argc, Janet *argv) {
         printf("returning..");
         return janet_wrap_struct(janet_struct_end(props));
     } else {
+        printf("janet_gettarray_buffer:\n");
         JanetBuffer *buffer = janet_gettarray_buffer(argv, 0);
+        printf("janet_struct_begin:\n");
         JanetKV *props = janet_struct_begin(2);
         printf("capa..");
         janet_struct_put(props, janet_ckeywordv("capacity"),
