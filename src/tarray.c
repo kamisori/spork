@@ -55,6 +55,11 @@ static size_t ta_type_sizes[] = {
 #define TA_ATOM_MAXSIZE 8
 #define TA_FLAG_BIG_ENDIAN 1
 
+
+//TODO mlatu:"do panics always exit the interpreter?
+//     why cant we just _not_ access the memory in a bad way, emit an error and then return nil??
+//     or is calling a panic function just the way to emit an error actually?"
+
 static JanetTArrayType get_ta_type_by_name(const uint8_t *name) {
     for (int i = 0; i < TA_COUNT_TYPES; i++) {
         if (!janet_cstrcmp(name, ta_type_names[i]))
@@ -77,26 +82,35 @@ static size_t ta_buffer_length(void *p, size_t size) {
 
 
 // get an unmanaged JanetBuffer
-JanetBuffer *ta_buffer_init(size_t buf_size) {
-    void* mem = janet_smalloc(buf_size);
-    if (NULL == mem) {
+JanetBuffer *ta_buffer_init(int32_t capacity, int32_t setToZero) {
+    uint8_t *data = NULL;
+    if (capacity < 4) capacity = 4;
+    janet_gcpressure(capacity);
+
+    data = janet_malloc(sizeof(uint8_t) * (size_t) capacity);
+    if (NULL == data) {
         JANET_OUT_OF_MEMORY;
     }
-    printf("ta_buffer_init allocated %zd bytes of scratchmem @%p\n", buf_size, mem);
-    memset(mem, 0, buf_size);
-    return janet_pointer_buffer_unsafe(mem, buf_size, buf_size);
+    printf("ta_buffer_init allocated %d bytes of scratchmem @%p\n", capacity, data);
+    if(setToZero == 1){
+        memset((void*)data, (uint8_t)0, capacity);
+    }
+    JanetBuffer *out = janet_pointer_buffer_unsafe((void*)data, capacity, capacity);
+    return out;
 }
 
 /* Ensure that the buffer has enough internal capacity */
-void ta_buffer_sensure(JanetBuffer *buffer, int32_t new_size, int32_t growth) {
+void ta_buffer_ensure(JanetBuffer *buffer, size_t new_size, int32_t growth) {
     uint8_t *new_data;
     uint8_t *old = buffer->data;
-    if (new_size <= buffer->capacity) return;
-    printf("ta_buffer_sensure reallocating %d bytes of scratchmem @%p\n", new_size, (void*)old);
+    printf("ta_buffer_ensure reallocating %zd bytes of scratchmem @%p\n", new_size, (void*)old);
     int64_t big_capacity = ((int64_t) new_size) * growth;
     new_size = big_capacity > INT32_MAX ? INT32_MAX : (int32_t) big_capacity;
-    new_data = (uint8_t *)janet_srealloc(old, (size_t) new_size);
-    printf("ta_buffer_sensure reallocated %d bytes of scratchmem @%p\n", new_size, (void*)new_data);
+    new_data = janet_realloc(old, (size_t) new_size);
+    if (NULL == new_data) {
+        JANET_OUT_OF_MEMORY;
+    }
+    printf("ta_buffer_ensure reallocated %zd bytes of scratchmem @%p\n", new_size, (void*)new_data);
     memset(new_data+buffer->capacity, 0, new_size-buffer->capacity);
     buffer->data = (uint8_t *) new_data;
     buffer->capacity = new_size;
@@ -121,7 +135,7 @@ static int ta_gc(void *p, size_t s) {
     if (view->buffer->data != NULL &&
         view->buffer->gc.flags & JANET_BUFFER_FLAG_NO_REALLOC){
         printf("ta_gc freeing %p \n", (void*)view->buffer);
-        janet_sfree(view->buffer->data);
+        janet_free(view->buffer->data);
         printf("ta_gc freed\n");
         view->buffer->data = NULL;
     }
@@ -132,8 +146,8 @@ static void ta_view_marshal(void *p, JanetMarshalContext *ctx) {
     JanetTArrayView *view = (JanetTArrayView *)p;
     size_t offset = (view->buffer->data - view->as.u8);
     janet_marshal_abstract(ctx, p);
-    janet_marshal_size(ctx, view->size);
-    janet_marshal_size(ctx, view->stride);
+    janet_marshal_int(ctx, view->size);
+    janet_marshal_int(ctx, view->stride);
     janet_marshal_int(ctx, view->flags);
     janet_marshal_int(ctx, view->type);
     janet_marshal_size(ctx, offset);
@@ -142,27 +156,24 @@ static void ta_view_marshal(void *p, JanetMarshalContext *ctx) {
 }
 
 static void *ta_view_unmarshal(JanetMarshalContext *ctx) {
-    int32_t capacity;
-    size_t offset;
-    int32_t flags;
-    int32_t atype;
+    size_t offset, buf_need_size;
+    int32_t capacity, flags, atype, size, stride;
     JanetTArrayView *view = janet_unmarshal_abstract(ctx, sizeof(JanetTArrayView));
-    view->size = janet_unmarshal_size(ctx);
-    view->stride = janet_unmarshal_size(ctx);
+    size = janet_unmarshal_int(ctx);
+    stride = janet_unmarshal_int(ctx);
     flags = janet_unmarshal_int(ctx);
     atype = janet_unmarshal_int(ctx);
     if (atype < 0 || atype >= TA_COUNT_TYPES)
         janet_panic("bad typed array type");
-    view->type = atype;
     offset = janet_unmarshal_size(ctx);
     capacity = janet_unmarshal_int(ctx);
-    size_t buf_need_size = offset + (ta_type_sizes[view->type]) * ((view->size - 1) * view->stride + 1);
-    printf("unmarshal calling ta_buffer_init %zd\n", buf_need_size);
-    view->buffer = ta_buffer_init(buf_need_size);
-    printf("unmarshal allocated scratchmem for buffer @%p\n", (void*)view->buffer);
+    view->buffer = ta_buffer_init(capacity, 0);
     janet_unmarshal_bytes(ctx, view->buffer->data, capacity);
-    view->buffer->count = capacity;
+    view->stride = stride;
+    view->size = size;
     view->as.u8 = view->buffer->data + offset;
+    view->type = atype;
+    view->flags = flags;
     return view;
 }
 
@@ -314,7 +325,7 @@ JanetTArrayView *janet_tarray_view(
     size_t stride,
     size_t offset,
     JanetBuffer *buffer) {
-    
+    printf("janet_tarray_view called type: %s %zd %zd %zd and buffer @%p \n", ta_type_names[type], size, stride, offset, buffer);
     JanetTArrayView *view = janet_abstract(&janet_ta_view_type, sizeof(JanetTArrayView));
 
     if ((stride < 1) || (size < 1)) janet_panic("stride and size should be > 0");
@@ -322,7 +333,7 @@ JanetTArrayView *janet_tarray_view(
 
     if (NULL == buffer) {
         printf("janet_tarray_view calling ta_buffer_init to alloc %zd bytes\n", buf_size);
-        buffer = ta_buffer_init(buf_size);
+        buffer = ta_buffer_init(buf_size, 1);
         printf("janet_tarray_view using new %p \n", (void*) buffer);
     }
     else
@@ -330,28 +341,25 @@ JanetTArrayView *janet_tarray_view(
         printf("janet_tarray_view using existing %p \n", (void*) buffer);
     }
 
-    printf("janet_tarray_view calling ta_buffer_sensure @%p to realloc for %zd bytes\n", (void*) buffer, buf_size);
-    ta_buffer_sensure(buffer, buf_size, 2);
-    printf("janet_tarray_view using %p \n", (void*) buffer);
-
-    if (buffer->capacity < buf_size) {
-        janet_panicf("bad buffer size, %i bytes allocated < %i required",
-                     buffer->capacity,
-                     buf_size);
+    if (buf_size > buffer->capacity) {
+        printf("janet_tarray_view calling ta_buffer_ensure @%p with %d bytes capacity to realloc for %zd bytes\n", (void*) buffer, buffer->capacity, buf_size);
+        ta_buffer_ensure(buffer, buf_size, 2);
     }
 
-    view->buffer = buffer;
-    view->stride = stride;
-    view->size = size;
     view->as.u8 = buffer->data + offset;
-    view->type = type;
+    view->buffer = buffer;
+    view->size = size;
 
 #ifdef JANET_BIG_ENDIAN
     view->flags = TA_FLAG_BIG_ENDIAN;
 #else
     view->flags = 0;
 #endif
+
+    view->stride = stride;
+    view->type = type;
     
+    printf("janet_tarray_view using %p \n", (void*) view->buffer);
     return view;
 }
 
@@ -390,7 +398,7 @@ static Janet cfun_typed_array_new(int32_t argc, Janet *argv) {
         const uint8_t *bytes;
         if (janet_bytes_view(argv[4], &bytes, &blen)) {
             printf("cfun_typed_array_new read memory @%p init with %d bytes", bytes, blen);
-            buffer = ta_buffer_init(blen);
+            buffer = ta_buffer_init(blen, 0);
             printf("cfun_typed_array_new allocated scratchmem for buffer @%p\n", buffer);
             memcpy(buffer->data, bytes, blen);
         } else {

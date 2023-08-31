@@ -6,6 +6,8 @@
   :url "https://github.com/janet-lang/spork"
   :repo "git+https://github.com/janet-lang/spork")
 
+(def this-os (os/which))
+
 (declare-source
   :source @["spork"])
 
@@ -40,18 +42,18 @@
   :source @["src/utf8.c"])
 
 (def cflags
-  '[
-    "/Iexternal"
-    "/Z7"
-    "/JMC"
-    "/EHsc"
-    #"/fsanitize=address"
-   ])
+  (case this-os
+    #:windows '[ "/Iexternal" "/Z7" "/JMC" "/EHsc" #"/fsanitize=address"]
+    :windows '["/Iexternal" "/Z7" "/JMC" "/EHsc"]
+    #default:
+      '["-g" "-O0" "-Wall" "-fno-inline"]
+    ))
 
 (def lflags
-  '[
-    "/DEBUG"
-    ])
+  (case this-os
+    :windows '["/DEBUG"]
+    #default:
+    '[]))
 
 (declare-native
  :name "spork/tarray"

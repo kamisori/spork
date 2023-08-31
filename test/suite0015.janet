@@ -12,14 +12,14 @@
   (for i 0 (tarray/length x) (array/push a (x i)))
   (pp a))
 
-
+(print "create some typed arrays")
 (assert-no-error
  "create some typed arrays"
  (do
    (def a (tarray/new :float64 10))
    (def b (tarray/new :float64 5 2 0 a))
    (def c (tarray/new :uint32 20))))
-
+(print "create some typed arrays from a buffer")
 (assert-no-error
  "create some typed arrays from a buffer"
  (do
@@ -29,7 +29,7 @@
 
 (def a (tarray/new :float64 10))
 (def b (tarray/new :float64 5 2 0 a))
-
+(print "fill tarray")
 (assert-no-error
  "fill tarray"
  (for i 0 (tarray/length a)
@@ -41,8 +41,10 @@
 (assert (= ((tarray/slice b) 3) (b 3) (a 6) 6) "tarray slice")
 (assert (= ((tarray/slice b 1) 2) (b 3) (a 6) 6) "tarray slice")
 (assert (= (:length a) (length a)) "length method and function")
-
+(print "marshal")
 (assert (= ((unmarshal (marshal b)) 3) (b 3)) "marshal")
+
+(print "# Janet issue 408")
 
 # Janet issue 408
 (assert-error :invalid-type (tarray/new :int32 10 1 0 (int/u64 7)) "tarray/new should only allow tarray or buffer for last argument")
@@ -55,6 +57,8 @@
 (put ta 9 7)
 (assert (= 2 (count |(= $ 7) ta)) "tarray count")
 
+
+(print "# int64 typed arrays")
 
 # int64 typed arrays
 (def i64 int/s64)
@@ -74,21 +78,28 @@
            ))
         "int64 typed arrays")
 
+(print "# Janet Issue #142")
+
 # Janet Issue #142
 
-(def buffer (buffer/new 8))
+(def buffer (buffer/new-filled 8 0))
 (def buffer-float64-view (tarray/new :float64 1 1 0 buffer))
 (def buffer-uint32-view (tarray/new :uint32 2 1 0 buffer))
 
 (set (buffer-uint32-view 1) 0xfffe9234)
 (set (buffer-uint32-view 0) 0x56789abc)
 
+(print "issue #142 nanbox hijack 1")
 (assert (buffer-float64-view 0) "issue #142 nanbox hijack 1")
+(print "issue #142 nanbox hijack 2")
 (assert (= (type (buffer-float64-view 0)) :number) "issue #142 nanbox hijack 2")
+(print "issue #142 nanbox hijack 3")
 (assert (= (type (unmarshal @"\xC8\xbc\x9axV4\x92\xfe\xff")) :number) "issue #142 nanbox hijack 3")
 
 
-#construct random ta
+(print "# construct random ta")
+
+# construct random ta
 (math/seedrandom 12345)
 (def array (tarray/new :float64 100))
 (for i 0 (tarray/length array)
@@ -128,7 +139,9 @@
 (assert-no-error (permutation-test array array2) "permutation-test array")
 
 
-##some bug regarding iteration
+(print "# #some bug regarding iteration")
+
+# #some bug regarding iteration
 (defn get-random-tarray [size seed]
   (math/seedrandom seed)
   (def array (tarray/new :float64 size))
@@ -149,7 +162,11 @@
 
 (var visited-keys @[])
 
-  # sometimes the crash is at another index but on my machine it's at around value #2777
+(print "# sometimes the crash is at another index but on my machine it's at around value #2777")
+
+
+(print "# sometimes the crash happens right after that value, sometimes the script keeps executing across some sort of garbagedata")
+# sometimes the crash is at another index but on my machine it's at around value #2777
 # sometimes the crash happens right after that value, sometimes the script keeps executing across some sort of garbagedata
 (let [count (tarray/length (randomtarrays :a))
       refbuf (get randomtarrays :a)]
