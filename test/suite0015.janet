@@ -19,6 +19,8 @@
    (def a (tarray/new :float64 10))
    (def b (tarray/new :float64 5 2 0 a))
    (def c (tarray/new :uint32 20))))
+
+
 (print "create some typed arrays from a buffer")
 (assert-no-error
  "create some typed arrays from a buffer"
@@ -48,15 +50,23 @@
 
 # Janet issue 408
 (assert-error :invalid-type (tarray/new :int32 10 1 0 (int/u64 7)) "tarray/new should only allow tarray or buffer for last argument")
+(print "##")
 (def ta (tarray/new :int32 10))
+(print "###")
 (assert (= (next a nil) 0) "tarray next 1")
+(print "####")
 (assert (= (next a 0) 1) "tarray next 2")
+(print "#!")
 (assert (= (next a 8) 9) "tarray next 3")
+(print "#!!")
 (assert (nil? (next a 9)) "tarray next 4")
+(print "#!!!")
 (put ta 3 7)
+(print "#§")
 (put ta 9 7)
-(assert (= 2 (count |(= $ 7) ta)) "tarray count")
+(print "#§§")
 
+(assert (= 2 (count |(= $ 7) ta)) "tarray count")
 
 (print "# int64 typed arrays")
 
